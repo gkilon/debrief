@@ -11,7 +11,7 @@ interface Props {
 
 const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [gaps, setGaps] = useState<string[]>(data.gaps || []);
 
   useEffect(() => {
@@ -22,17 +22,17 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
 
   const handleAnalyze = async () => {
     setLoading(true);
-    setError(false);
+    setError(null);
     try {
       const suggestedGaps = await identifyGaps(data.whatWasPlanned || '', data.whatHappened || '');
       if (suggestedGaps) {
         setGaps(suggestedGaps);
       } else {
-        setError(true);
+        setError("לא הצלחנו לקבל תשובה מה-AI. ייתכן שיש בעיה במפתח ה-API.");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setError(true);
+      setError(e.message || "חלה שגיאה לא צפויה בניתוח.");
     } finally {
       setLoading(false);
     }
@@ -56,23 +56,25 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
     <div className="space-y-6 animate-in slide-in-from-left duration-300">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-xl font-black text-slate-900">זיהוי פערים</h2>
-        <button 
-          onClick={handleAnalyze} 
-          disabled={loading}
-          className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full active:scale-95 transition-transform"
-        >
-          {loading ? 'מנתח...' : 'ניתוח AI 🤖'}
-        </button>
+        {!loading && (
+          <button 
+            onClick={handleAnalyze} 
+            className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full active:scale-95 transition-transform"
+          >
+            נתח שוב 🤖
+          </button>
+        )}
       </div>
 
       {error && (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl text-amber-800 text-xs font-bold flex flex-col gap-2">
-          <p>⚠️ לא הצלחנו להתחבר לבינה המלאכותית (בדוק את ה-API KEY ב-Netlify).</p>
+        <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-red-800 text-xs font-bold flex flex-col gap-2 animate-in fade-in">
+          <p>⚠️ שגיאה: {error}</p>
+          <p className="opacity-70">תוכל להמשיך על ידי הוספה ידנית של פערים.</p>
           <button 
-            onClick={() => { setError(false); if (gaps.length === 0) addGap(); }}
-            className="text-amber-900 underline text-right"
+            onClick={() => { setError(null); if (gaps.length === 0) addGap(); }}
+            className="bg-white border border-red-200 py-1 px-3 rounded-lg self-end text-red-600"
           >
-            הזן פערים ידנית והמשך
+            הזן ידנית
           </button>
         </div>
       )}
@@ -85,22 +87,22 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
               <div className="absolute top-0 w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
             </div>
             <div className="text-center">
-              <p className="text-sm font-black text-slate-700">ה-AI מנתח את הנתונים...</p>
-              <p className="text-[10px] text-slate-400 mt-1">זה עשוי לקחת כמה שניות</p>
+              <p className="text-sm font-black text-slate-700">ה-AI מנתח נתונים...</p>
+              <p className="text-[10px] text-slate-400 mt-1 italic">מזהה פערים בין תכנון לביצוע</p>
             </div>
             <button 
-              onClick={() => { setLoading(false); addGap(); }}
+              onClick={() => { setLoading(false); if(gaps.length === 0) addGap(); }}
               className="mt-4 text-[10px] font-bold text-slate-400 underline"
             >
-              ביטול והזנה ידנית
+              דלג להזנה ידנית
             </button>
           </div>
         ) : (
           <>
-            {gaps.length === 0 && !loading && (
+            {gaps.length === 0 && !loading && !error && (
               <div className="py-10 text-center space-y-4">
-                <p className="text-slate-400 text-sm font-medium">לא נמצאו פערים או שהניתוח נכשל.</p>
-                <button onClick={addGap} className="bg-slate-100 px-4 py-2 rounded-xl text-xs font-bold">הוסף פער ראשון +</button>
+                <p className="text-slate-400 text-sm font-medium">מוכן להזנת פערים.</p>
+                <button onClick={addGap} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-bold shadow-lg">הוסף פער ראשון +</button>
               </div>
             )}
             {gaps.map((gap, i) => (
@@ -120,7 +122,7 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
                 </button>
               </div>
             ))}
-            {gaps.length > 0 && (
+            {(gaps.length > 0 || error) && (
               <button 
                 onClick={addGap}
                 className="w-full py-4 border-2 border-dashed border-slate-200 text-slate-400 font-bold rounded-2xl active:bg-slate-100 text-sm transition-colors"
@@ -137,10 +139,10 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
           onClick={handleProceed}
           disabled={loading || (gaps.length === 0 && !error)}
           className={`w-full py-4 rounded-2xl font-black text-lg transition-all shadow-xl ${
-            gaps.length > 0 || error ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-400'
+            gaps.length > 0 || error ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-400 opacity-50'
           }`}
         >
-          ניתוח שורש ומסקנות 🎯
+          לשלב המסקנות 🎯
         </button>
       </div>
     </div>

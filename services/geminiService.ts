@@ -1,30 +1,23 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const getAI = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API_KEY is missing in environment variables");
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
 /**
  * שלב 1: זיהוי פערים על בסיס תכנון מול ביצוע
  */
 export const identifyGaps = async (planned: string, actual: string) => {
   try {
-    const ai = getAI();
+    // Always create a new GoogleGenAI instance right before the API call as per guidelines
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `
       אתה מומחה לתחקירים מבצעיים. נתון תכנון מול ביצוע.
       תכנון: ${planned}
       ביצוע: ${actual}
-      זהה 3 פערים עיקריים. החזר JSON עם מערך בשם gaps.
+      זהה 3 פערים עיקריים בין התכנון לביצוע. החזר JSON עם מערך בשם gaps.
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-flash-lite-latest",
-      contents: [{ parts: [{ text: prompt }] }],
+      model: "gemini-3-flash-preview",
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -41,23 +34,24 @@ export const identifyGaps = async (planned: string, actual: string) => {
     });
 
     return response.text ? JSON.parse(response.text).gaps : [];
-  } catch (error) {
-    console.error("Identify Gaps Detailed Error:", error);
-    return null; // Return null to indicate error vs empty array
+  } catch (error: any) {
+    console.error("Identify Gaps Error:", error);
+    // Return null to trigger the error UI in the component
+    return null;
   }
 };
 
 /**
- * שלב 2: ניתוח גורמי שורש ומסקנות
+ * שלב 2: ניתוח גורמי שורש ומסקנות בסיסיות לטופס
  */
 export const analyzeConclusions = async (gaps: string[]) => {
   try {
-    const ai = getAI();
-    const prompt = `נתח את הפערים: ${gaps.join(", ")}. החזר JSON עם rootCauses ו-conclusions (מערכי מחרוזות).`;
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `נתח את הפערים הבאים ומצא גורמי שורש ומסקנות לשיפור: ${gaps.join(", ")}. החזר JSON עם מערכי rootCauses ו-conclusions.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-flash-lite-latest",
-      contents: [{ parts: [{ text: prompt }] }],
+      model: "gemini-3-flash-preview",
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -78,14 +72,27 @@ export const analyzeConclusions = async (gaps: string[]) => {
   }
 };
 
-export const analyzeRootCause = async (data: { whatHappened: string, whatWasPlanned: string, gaps: string[] }) => {
+/**
+ * ניתוח RCA מעמיק עבור הסוכן החכם (AIAgent)
+ */
+export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappened: string, gaps: string[] }) => {
   try {
-    const ai = getAI();
-    const prompt = `בצע RCA עמוק: תכנון: ${data.whatWasPlanned}, ביצוע: ${data.whatHappened}, פערים: ${data.gaps.join(", ")}`;
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `
+      בצע ניתוח שורש (Root Cause Analysis) מעמיק לאירוע הבא:
+      מה תוכנן: ${data.whatWasPlanned}
+      מה קרה בפועל: ${data.whatHappened}
+      פערים שזוהו: ${data.gaps.join(", ")}
+      
+      החזר JSON הכולל:
+      1. rootCauses: מערך של גורמי שורש שזוהו.
+      2. analysis: טקסט חופשי המנתח את המצב בצורה מעמיקה.
+      3. recommendations: מערך של המלצות אופרטיביות לביצוע.
+    `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [{ parts: [{ text: prompt }] }],
+      model: "gemini-3-pro-preview", // Complex task uses Pro
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -99,26 +106,31 @@ export const analyzeRootCause = async (data: { whatHappened: string, whatWasPlan
         },
       },
     });
-    return response.text ? JSON.parse(response.text) : { rootCauses: [], analysis: "", recommendations: [] };
+
+    return response.text ? JSON.parse(response.text) : { rootCauses: [], analysis: '', recommendations: [] };
   } catch (error) {
-    console.error("RCA Error:", error);
-    return { rootCauses: [], analysis: "שגיאה בחיבור לשרת ה-AI", recommendations: [] };
+    console.error("Analyze Root Cause Error:", error);
+    return { rootCauses: [], analysis: 'שגיאה בניתוח הנתונים.', recommendations: [] };
   }
 };
 
+/**
+ * צ'אט אינטראקטיבי עם הסוכן
+ */
 export const chatWithAgent = async (history: {role: string, content: string}[], message: string) => {
   try {
-    const ai = getAI();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: 'אתה עוזר מומחה לתחקירים מבצעיים (AAR).',
+        systemInstruction: 'אתה עוזר מומחה לתחקירים מבצעיים (AAR). עזור למשתמש להבין את הפערים ולשפר ביצועים.',
       },
     });
+    // Message corresponds to user input in chat session
     const response = await chat.sendMessage({ message });
     return response.text;
   } catch (error) {
     console.error("Chat Error:", error);
-    return "חלה שגיאה בתקשורת עם ה-AI. וודא שה-API KEY הוגדר כהלכה ב-Netlify.";
+    return "חלה שגיאה בתקשורת עם ה-AI. אנא נסה שוב מאוחר יותר.";
   }
 };
