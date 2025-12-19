@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { identifyGaps } from '../services/geminiService';
 import { DebriefData } from '../types';
@@ -28,11 +27,11 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
       if (suggestedGaps) {
         setGaps(suggestedGaps);
       } else {
-        setError("לא הצלחנו לקבל תשובה מה-AI. ייתכן שיש בעיה במפתח ה-API.");
+        setError("לא התקבלה תשובה מהשרת. וודא שמשתנה הסביבה API_KEY מוגדר ב-Netlify ושהמפתח תקין.");
       }
     } catch (e: any) {
       console.error(e);
-      setError(e.message || "חלה שגיאה לא צפויה בניתוח.");
+      setError(e.message || "חלה שגיאה לא צפויה בניתוח. בדוק את ה-Console בדפדפן.");
     } finally {
       setLoading(false);
     }
@@ -68,13 +67,13 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
 
       {error && (
         <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-red-800 text-xs font-bold flex flex-col gap-2 animate-in fade-in">
-          <p>⚠️ שגיאה: {error}</p>
-          <p className="opacity-70">תוכל להמשיך על ידי הוספה ידנית של פערים.</p>
+          <p>⚠️ {error}</p>
+          <p className="opacity-70">ניתן להזין פערים ידנית ולהמשיך בתחקיר.</p>
           <button 
             onClick={() => { setError(null); if (gaps.length === 0) addGap(); }}
-            className="bg-white border border-red-200 py-1 px-3 rounded-lg self-end text-red-600"
+            className="bg-white border border-red-200 py-2 px-4 rounded-xl self-end text-red-600 shadow-sm font-bold active:scale-95 transition-transform"
           >
-            הזן ידנית
+            הזן פערים ידנית
           </button>
         </div>
       )}
@@ -94,7 +93,7 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
               onClick={() => { setLoading(false); if(gaps.length === 0) addGap(); }}
               className="mt-4 text-[10px] font-bold text-slate-400 underline"
             >
-              דלג להזנה ידנית
+              בטל והזן ידנית
             </button>
           </div>
         ) : (

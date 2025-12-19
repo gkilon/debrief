@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
@@ -6,8 +5,13 @@ import { GoogleGenAI, Type } from "@google/genai";
  */
 export const identifyGaps = async (planned: string, actual: string) => {
   try {
-    // Always create a new GoogleGenAI instance right before the API call as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      console.error("Missing API_KEY environment variable.");
+      return null;
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = `
       אתה מומחה לתחקירים מבצעיים. נתון תכנון מול ביצוע.
       תכנון: ${planned}
@@ -17,8 +21,9 @@ export const identifyGaps = async (planned: string, actual: string) => {
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
+        thinkingConfig: { thinkingBudget: 0 }, // Disable thinking for speed on simple tasks
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -36,7 +41,6 @@ export const identifyGaps = async (planned: string, actual: string) => {
     return response.text ? JSON.parse(response.text).gaps : [];
   } catch (error: any) {
     console.error("Identify Gaps Error:", error);
-    // Return null to trigger the error UI in the component
     return null;
   }
 };
@@ -46,13 +50,17 @@ export const identifyGaps = async (planned: string, actual: string) => {
  */
 export const analyzeConclusions = async (gaps: string[]) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return { rootCauses: [], conclusions: [] };
+
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = `נתח את הפערים הבאים ומצא גורמי שורש ומסקנות לשיפור: ${gaps.join(", ")}. החזר JSON עם מערכי rootCauses ו-conclusions.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
+        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -77,7 +85,10 @@ export const analyzeConclusions = async (gaps: string[]) => {
  */
 export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappened: string, gaps: string[] }) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return { rootCauses: [], analysis: 'חסר מפתח API.', recommendations: [] };
+
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = `
       בצע ניתוח שורש (Root Cause Analysis) מעמיק לאירוע הבא:
       מה תוכנן: ${data.whatWasPlanned}
@@ -91,8 +102,8 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview", // Complex task uses Pro
-      contents: prompt,
+      model: "gemini-3-pro-preview",
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -119,14 +130,16 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
  */
 export const chatWithAgent = async (history: {role: string, content: string}[], message: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) return "שגיאה: חסר מפתח API בסביבת העבודה.";
+
+    const ai = new GoogleGenAI({ apiKey });
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
         systemInstruction: 'אתה עוזר מומחה לתחקירים מבצעיים (AAR). עזור למשתמש להבין את הפערים ולשפר ביצועים.',
       },
     });
-    // Message corresponds to user input in chat session
     const response = await chat.sendMessage({ message });
     return response.text;
   } catch (error) {
