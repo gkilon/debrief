@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
@@ -5,7 +6,7 @@ import { GoogleGenAI, Type } from "@google/genai";
  */
 export const identifyGaps = async (planned: string, actual: string) => {
   try {
-    // אתחול ישיר לפי ההנחיות - המפתח מוזרק בזמן ה-Build
+    // אתחול המופע ממש לפני השימוש כדי להבטיח קבלת המפתח המעודכן ביותר
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const prompt = `אתה מומחה לתחקירים מבצעיים (AAR). זהה 3 פערים עיקריים בין התכנון לביצוע הבאים:
@@ -35,6 +36,10 @@ export const identifyGaps = async (planned: string, actual: string) => {
     return response.text ? JSON.parse(response.text).gaps : null;
   } catch (error: any) {
     console.error("Identify Gaps Error:", error);
+    // אם השגיאה נובעת מחוסר מפתח, נזרוק אותה כדי שה-UI ידע להציג בחירת מפתח
+    if (error.message?.includes("API Key")) {
+      throw new Error("MISSING_API_KEY");
+    }
     return null;
   }
 };
@@ -65,8 +70,9 @@ export const analyzeConclusions = async (gaps: string[]) => {
     });
 
     return response.text ? JSON.parse(response.text) : { rootCauses: [], conclusions: [] };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Analyze Conclusions Error:", error);
+    if (error.message?.includes("API Key")) throw new Error("MISSING_API_KEY");
     return { rootCauses: [], conclusions: [] };
   }
 };
@@ -101,8 +107,9 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
     });
 
     return response.text ? JSON.parse(response.text) : { rootCauses: [], analysis: '', recommendations: [] };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Analyze Root Cause Error:", error);
+    if (error.message?.includes("API Key")) throw new Error("MISSING_API_KEY");
     return { rootCauses: [], analysis: 'שגיאה בניתוח הנתונים.', recommendations: [] };
   }
 };
@@ -121,8 +128,9 @@ export const chatWithAgent = async (history: {role: string, content: string}[], 
     });
     const response = await chat.sendMessage({ message });
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Chat Error:", error);
+    if (error.message?.includes("API Key")) return "נראה שחסר מפתח API. נא לחץ על 'התחברות' בתפריט.";
     return "חלה שגיאה בתקשורת.";
   }
 };

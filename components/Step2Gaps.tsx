@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { identifyGaps } from '../services/geminiService';
 import { DebriefData } from '../types';
@@ -27,11 +28,22 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
       if (suggestedGaps && suggestedGaps.length > 0) {
         setGaps(suggestedGaps);
       } else {
-        setError("מפתח ה-API לא זוהה או שאינו תקין בסביבת ההרצה.");
+        setError("לא נמצאו פערים משמעותיים או שחלה שגיאה פנימית.");
       }
     } catch (e: any) {
       console.error(e);
-      setError("חלה שגיאה בתקשורת עם ה-AI.");
+      if (e.message === "MISSING_API_KEY") {
+        setError("נראה שחסר מפתח API. נא להגדיר מפתח בהגדרות המערכת.");
+        // @ts-ignore
+        if (window.aistudio) {
+          // @ts-ignore
+          window.aistudio.openSelectKey().then(() => {
+            handleAnalyze(); // ניסיון חוזר לאחר פתיחת הדיאלוג
+          });
+        }
+      } else {
+        setError("חלה שגיאה בתקשורת עם ה-AI.");
+      }
     } finally {
       setLoading(false);
     }
@@ -74,8 +86,8 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
           <div className="flex gap-2">
             <span>⚠️</span>
             <div className="space-y-1">
-              <p>המערכת לא הצליחה לגשת ל-AI.</p>
-              <p className="font-normal opacity-80">וודא שמשתנה הסביבה API_KEY מוגדר ב-Netlify ושהוא זמין ל-Frontend. נסה להשתמש ב-VITE_API_KEY במידת הצורך.</p>
+              <p>{error}</p>
+              <p className="font-normal opacity-80">וודא שמשתנה הסביבה API_KEY מוגדר או בחר מפתח מהתפריט.</p>
             </div>
           </div>
           <button 

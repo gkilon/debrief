@@ -9,11 +9,29 @@ import { DebriefData } from './types';
 const STORAGE_KEY = 'debrief_pro_records';
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'editor'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'editor' | 'setup'>('dashboard');
   const [activeStep, setActiveStep] = useState(0);
   const [history, setHistory] = useState<DebriefData[]>([]);
   const [currentDebrief, setCurrentDebrief] = useState<Partial<DebriefData>>({});
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved'>('idle');
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+
+  // בדיקת קיום מפתח API בהפעלה
+  useEffect(() => {
+    const checkApiKey = async () => {
+      const exists = !!process.env.API_KEY;
+      // @ts-ignore - aistudio is provided by the environment
+      if (!exists && window.aistudio) {
+        // @ts-ignore
+        const selected = await window.aistudio.hasSelectedApiKey();
+        if (!selected) {
+          setHasApiKey(false);
+          setView('setup');
+        }
+      }
+    };
+    checkApiKey();
+  }, []);
 
   // Load history on mount
   useEffect(() => {
@@ -31,6 +49,17 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
   }, [history]);
+
+  const handleConnect = async () => {
+    // @ts-ignore
+    if (window.aistudio) {
+      // @ts-ignore
+      await window.aistudio.openSelectKey();
+      // הנחה שהבחירה הצליחה לפי ההוראות
+      setHasApiKey(true);
+      setView('dashboard');
+    }
+  };
 
   const startNewDebrief = () => {
     setCurrentDebrief({
@@ -115,6 +144,34 @@ const App: React.FC = () => {
       }).catch(console.error);
     }
   };
+
+  if (view === 'setup') {
+    return (
+      <Layout title="חיבור למערכת">
+        <div className="flex flex-col items-center justify-center py-12 text-center space-y-8 animate-in fade-in">
+          <div className="w-24 h-24 bg-slate-900 rounded-3xl flex items-center justify-center text-white text-5xl shadow-2xl">
+            🚀
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-3xl font-black text-slate-900">ברוכים הבאים</h2>
+            <p className="text-slate-500 max-w-xs mx-auto text-sm font-medium">
+              כדי להשתמש ביכולות הבינה המלאכותית לניתוח התחקיר, עליך לחבר מפתח API.
+            </p>
+          </div>
+          <button 
+            onClick={handleConnect}
+            className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-all w-full max-w-xs"
+          >
+            התחברות עם Google Gemini
+          </button>
+          <p className="text-[10px] text-slate-400">
+            השימוש מחייב מפתח API מפרויקט עם חיוב מופעל. <br/>
+            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline font-bold">למידע נוסף על חיוב</a>
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   if (view === 'dashboard') {
     return (
