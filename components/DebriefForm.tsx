@@ -74,7 +74,8 @@ const DebriefForm: React.FC<Props> = ({ onSave }) => {
           <label className="block text-sm font-bold text-green-600">מה היה בפועל?</label>
           <textarea
             name="whatHappened"
-            value={formData.whatHappened}
+            // Ensure whatHappened is a string for the textarea value to avoid type errors
+            value={typeof formData.whatHappened === 'string' ? formData.whatHappened : ''}
             onChange={handleChange}
             rows={4}
             className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"

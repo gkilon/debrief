@@ -1,16 +1,14 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
+import { WhatHappenedStructured } from "../types";
 
 /**
  * פונקציה פנימית ליצירת המופע של ה-AI.
- * בודקת את כל הווריאציות שהמשתמש הגדיר ב-Netlify כדי להבטיח זיהוי.
+ * תמיד משתמש במפתח מהסביבה לפי ההנחיות.
  */
 const getAiInstance = () => {
-  // בדיקה של כל האפשרויות שהוגדרו ב-Netlify
-  const apiKey = 
-    process.env.API_KEY || 
-    (import.meta as any).env?.VITE_API_KEY || 
-    (import.meta as any).env?.VITE_GOOGLE_API_KEY ||
-    (process.env as any).VITE_API_KEY;
+  // Use process.env.API_KEY exclusively for getting the API key
+  const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
     throw new Error("MISSING_API_KEY");
@@ -19,21 +17,38 @@ const getAiInstance = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+const formatActualData = (actual: string | WhatHappenedStructured): string => {
+  if (typeof actual === 'string') return actual;
+  return `
+    תהליך: ${actual.process}
+    תוצאה: ${actual.result}
+    אווירה/מורל: ${actual.atmosphere}
+    משאבים: ${actual.resources}
+    בטיחות: ${actual.safety}
+    אחר: ${actual.other}
+  `.trim();
+};
+
 /**
  * שלב 1: זיהוי פערים על בסיס תכנון מול ביצוע
  */
-export const identifyGaps = async (planned: string, actual: string) => {
+export const identifyGaps = async (planned: string, actual: string | WhatHappenedStructured) => {
   try {
     const ai = getAiInstance();
+    const actualText = formatActualData(actual);
     
-    const prompt = `אתה מומחה לתחקירים מבצעיים (AAR). זהה 3 פערים עיקריים בין התכנון לביצוע הבאים:
+    const prompt = `אתה מומחה לתחקירים מבצעיים (AAR). זהה 3-4 פערים עיקריים בין התכנון לביצוע.
+    חשוב מאוד: התשובות חייבות להיות בעברית בלבד!
+    
     תכנון: ${planned}
-    ביצוע: ${actual}
-    החזר JSON עם מערך בשם gaps.`;
+    ביצוע בפועל (בחלוקה לקטגוריות):
+    ${actualText}
+    
+    החזר JSON עם מערך בשם gaps המכיל מחרוזות בעברית.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
       config: {
         thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
@@ -50,6 +65,7 @@ export const identifyGaps = async (planned: string, actual: string) => {
       },
     });
 
+    // Access the extracted string output directly via .text property
     return response.text ? JSON.parse(response.text).gaps : null;
   } catch (error: any) {
     console.error("Identify Gaps Error:", error);
@@ -66,11 +82,16 @@ export const identifyGaps = async (planned: string, actual: string) => {
 export const analyzeConclusions = async (gaps: string[]) => {
   try {
     const ai = getAiInstance();
-    const prompt = `נתח את הפערים הבאים ומצא גורמי שורש ומסקנות לשיפור: ${gaps.join(", ")}. החזר JSON עם מערכי rootCauses ו-conclusions.`;
+    const prompt = `נתח את הפערים הבאים ומצא גורמי שורש ומסקנות לשיפור.
+    חשוב מאוד: כל התוכן חייב להיות בעברית בלבד!
+    
+    הפערים: ${gaps.join(", ")}
+    
+    החזר JSON עם מערכי rootCauses ו-conclusions בעברית.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
       config: {
         thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
@@ -85,6 +106,7 @@ export const analyzeConclusions = async (gaps: string[]) => {
       },
     });
 
+    // Access text property directly
     return response.text ? JSON.parse(response.text) : { rootCauses: [], conclusions: [] };
   } catch (error: any) {
     console.error("Analyze Conclusions Error:", error);
@@ -98,18 +120,22 @@ export const analyzeConclusions = async (gaps: string[]) => {
 /**
  * ניתוח RCA מעמיק עבור הסוכן החכם (AIAgent)
  */
-export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappened: string, gaps: string[] }) => {
+export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappened: string | WhatHappenedStructured, gaps: string[] }) => {
   try {
     const ai = getAiInstance();
-    const prompt = `בצע ניתוח שורש (Root Cause Analysis) מעמיק לאירוע הבא:
+    const actualText = formatActualData(data.whatHappened);
+    
+    const prompt = `בצע ניתוח שורש (Root Cause Analysis) מעמיק לאירוע הבא.
+      חשוב מאוד: כל הניתוח וההמלצות חייבים להיות בעברית בלבד!
+      
       מה תוכנן: ${data.whatWasPlanned}
-      מה קרה בפועל: ${data.whatHappened}
+      מה קרה בפועל: ${actualText}
       פערים שזוהו: ${data.gaps.join(", ")}
-      החזר JSON הכולל rootCauses (מערך), analysis (טקסט), ו-recommendations (מערך).`;
+      החזר JSON הכולל rootCauses (מערך), analysis (טקסט), ו-recommendations (מערך), הכל בעברית.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -124,6 +150,7 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
       },
     });
 
+    // Access text property directly
     return response.text ? JSON.parse(response.text) : { rootCauses: [], analysis: '', recommendations: [] };
   } catch (error: any) {
     console.error("Analyze Root Cause Error:", error);
@@ -143,10 +170,11 @@ export const chatWithAgent = async (history: {role: string, content: string}[], 
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: 'אתה עוזר מומחה לתחקירים מבצעיים (AAR). עזור למשתמש להבין את הפערים ולשפר ביצועים.',
+        systemInstruction: 'אתה עוזר מומחה לתחקירים מבצעיים (AAR). ענה תמיד בעברית בלבד. עזור למשתמש להבין את הפערים ולשפר ביצועים.',
       },
     });
     const response = await chat.sendMessage({ message });
+    // Access text property directly
     return response.text;
   } catch (error: any) {
     console.error("Chat Error:", error);

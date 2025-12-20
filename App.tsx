@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Step1Input from './components/Step1Input';
@@ -18,10 +19,8 @@ const App: React.FC = () => {
   // בדיקת קיום מפתח API בהפעלה
   useEffect(() => {
     const checkApiKey = async () => {
-      const apiKey = 
-        process.env.API_KEY || 
-        (import.meta as any).env?.VITE_API_KEY || 
-        (import.meta as any).env?.VITE_GOOGLE_API_KEY;
+      // Strictly use process.env.API_KEY as per the rules
+      const apiKey = process.env.API_KEY;
       
       const exists = !!apiKey;
       
@@ -60,7 +59,7 @@ const App: React.FC = () => {
     if (window.aistudio) {
       // @ts-ignore
       await window.aistudio.openSelectKey();
-      // הנחה שהבחירה הצליחה לפי ההוראות
+      // Assume the key selection was successful as per guidelines
       setHasApiKey(true);
       setView('dashboard');
     }
@@ -122,7 +121,12 @@ const App: React.FC = () => {
     text += `תאריך: ${new Date(d.timestamp || Date.now()).toLocaleDateString('he-IL')}\n\n`;
     
     if (d.whatWasPlanned) text += `*מה תוכנן:*\n${d.whatWasPlanned}\n\n`;
-    if (d.whatHappened) text += `*מה היה בפועל:*\n${d.whatHappened}\n\n`;
+    if (d.whatHappened) {
+      const formattedActual = typeof d.whatHappened === 'string' 
+        ? d.whatHappened 
+        : `תהליך: ${d.whatHappened.process}\nתוצאה: ${d.whatHappened.result}`;
+      text += `*מה היה בפועל:*\n${formattedActual}\n\n`;
+    }
     
     if (d.gaps && d.gaps.length > 0) {
       text += `*פערים שזוהו:*\n${d.gaps.map((g, i) => `${i + 1}. ${g}`).join('\n')}\n\n`;
@@ -170,7 +174,7 @@ const App: React.FC = () => {
             התחברות עם Google Gemini
           </button>
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 max-w-xs text-[11px] text-blue-800 leading-relaxed">
-            <strong>טיפ:</strong> אם כבר הגדרת מפתח ב-Netlify וזה עדיין מופיע, וודא שביצעת <strong>Trigger Deploy</strong> מחדש כדי שהשינויים ייכנסו לתוקף.
+            <strong>חשוב:</strong> עליך לבחור מפתח API מפרויקט GCP עם חיוב מופעל כדי להשתמש במודלי ה-AI.
           </div>
           <p className="text-[10px] text-slate-400">
             השימוש מחייב מפתח API מפרויקט עם חיוב מופעל. <br/>
