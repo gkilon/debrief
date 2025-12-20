@@ -24,11 +24,10 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
     setError(null);
     try {
       const suggestedGaps = await identifyGaps(data.whatWasPlanned || '', data.whatHappened || '');
-      if (suggestedGaps) {
+      if (suggestedGaps && suggestedGaps.length > 0) {
         setGaps(suggestedGaps);
       } else {
-        // שגיאה שקטה יותר שמאפשרת המשכיות
-        setError("לא הצלחנו לקבל ניתוח אוטומטי כרגע.");
+        setError("מפתח ה-API לא זוהה או שאינו תקין בסביבת ההרצה.");
       }
     } catch (e: any) {
       console.error(e);
@@ -46,7 +45,7 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
 
   const addGap = () => {
     setGaps([...gaps, '']);
-    setError(null); // נקה שגיאה אם המשתמש התחיל להזין ידנית
+    setError(null);
   };
   
   const removeGap = (i: number) => setGaps(gaps.filter((_, idx) => idx !== i));
@@ -71,14 +70,19 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
       </div>
 
       {error && (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl text-amber-900 text-xs font-bold flex flex-col gap-2 animate-in fade-in">
-          <p>💡 {error}</p>
-          <p className="opacity-70">אל דאגה, ניתן להזין פערים ידנית ולהמשיך כרגיל.</p>
+        <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-red-900 text-xs font-bold flex flex-col gap-3 animate-in fade-in">
+          <div className="flex gap-2">
+            <span>⚠️</span>
+            <div className="space-y-1">
+              <p>המערכת לא הצליחה לגשת ל-AI.</p>
+              <p className="font-normal opacity-80">וודא שמשתנה הסביבה API_KEY מוגדר ב-Netlify ושהוא זמין ל-Frontend. נסה להשתמש ב-VITE_API_KEY במידת הצורך.</p>
+            </div>
+          </div>
           <button 
             onClick={addGap}
-            className="bg-white border border-amber-200 py-2 px-4 rounded-xl self-end text-amber-700 shadow-sm font-bold active:scale-95 transition-transform"
+            className="bg-white border border-red-200 py-2 px-4 rounded-xl self-end text-red-700 shadow-sm font-bold active:scale-95 transition-transform"
           >
-            הזן פערים בעצמי
+            המשך והזן פערים ידנית
           </button>
         </div>
       )}
