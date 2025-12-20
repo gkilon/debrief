@@ -1,99 +1,70 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { WhatHappenedStructured } from "../types";
+import { WhatHappenedStructured, Message } from "../types";
 
-/**
- * פונקציה פנימית ליצירת המופע של ה-AI.
- * תמיד משתמש במפתח מהסביבה לפי ההנחיות.
- */
-const getAiInstance = () => {
-  // Use process.env.API_KEY exclusively for getting the API key
-  const apiKey = process.env.API_KEY;
-
-  if (!apiKey) {
-    throw new Error("MISSING_API_KEY");
-  }
-  
-  return new GoogleGenAI({ apiKey });
-};
-
+// Helper function to format structured data for the model
 const formatActualData = (actual: string | WhatHappenedStructured): string => {
   if (typeof actual === 'string') return actual;
   return `
     תהליך: ${actual.process}
     תוצאה: ${actual.result}
-    אווירה/מורל: ${actual.atmosphere}
+    אווירה ומורל: ${actual.atmosphere}
     משאבים: ${actual.resources}
     בטיחות: ${actual.safety}
     אחר: ${actual.other}
   `.trim();
 };
 
-/**
- * שלב 1: זיהוי פערים על בסיס תכנון מול ביצוע
- */
+// Identify gaps between planned and actual events
 export const identifyGaps = async (planned: string, actual: string | WhatHappenedStructured) => {
   try {
-    const ai = getAiInstance();
+    // Ensuring instance is created right before use with current process.env.API_KEY
+    if (!process.env.API_KEY) throw new Error("MISSING_API_KEY");
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const actualText = formatActualData(actual);
     
-    const prompt = `אתה מומחה לתחקירים מבצעיים (AAR). זהה 3-4 פערים עיקריים בין התכנון לביצוע.
-    חשוב מאוד: התשובות חייבות להיות בעברית בלבד!
-    
+    const prompt = `אתה מומחה לתחקירים מבצעיים (AAR). זהה 3 פערים עיקריים בין התכנון לביצוע.
+    חובה להשיב בעברית בלבד!
     תכנון: ${planned}
-    ביצוע בפועל (בחלוקה לקטגוריות):
-    ${actualText}
-    
-    החזר JSON עם מערך בשם gaps המכיל מחרוזות בעברית.`;
+    ביצוע בפועל: ${actualText}
+    החזר JSON עם מערך 'gaps' של מחרוזות בעברית.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
-        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            gaps: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
+            gaps: { type: Type.ARRAY, items: { type: Type.STRING } },
           },
           required: ["gaps"],
         },
       },
     });
 
-    // Access the extracted string output directly via .text property
     return response.text ? JSON.parse(response.text).gaps : null;
   } catch (error: any) {
-    console.error("Identify Gaps Error:", error);
-    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
-      throw new Error("MISSING_API_KEY");
-    }
+    if (error.message === "MISSING_API_KEY") throw error;
     return null;
   }
 };
 
-/**
- * שלב 2: ניתוח גורמי שורש ומסקנות בסיסיות לטופס
- */
+// Analyze gaps to find root causes and conclusions
 export const analyzeConclusions = async (gaps: string[]) => {
   try {
-    const ai = getAiInstance();
+    if (!process.env.API_KEY) throw new Error("MISSING_API_KEY");
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = `נתח את הפערים הבאים ומצא גורמי שורש ומסקנות לשיפור.
-    חשוב מאוד: כל התוכן חייב להיות בעברית בלבד!
-    
-    הפערים: ${gaps.join(", ")}
-    
-    החזר JSON עם מערכי rootCauses ו-conclusions בעברית.`;
+    חובה להשיב בעברית בלבד!
+    פערים: ${gaps.join(", ")}
+    החזר JSON עם מערכי 'rootCauses' ו-'conclusions' בעברית.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
-        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -106,36 +77,40 @@ export const analyzeConclusions = async (gaps: string[]) => {
       },
     });
 
-    // Access text property directly
     return response.text ? JSON.parse(response.text) : { rootCauses: [], conclusions: [] };
   } catch (error: any) {
-    console.error("Analyze Conclusions Error:", error);
-    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
-      throw new Error("MISSING_API_KEY");
-    }
+    if (error.message === "MISSING_API_KEY") throw error;
     return { rootCauses: [], conclusions: [] };
   }
 };
 
-/**
- * ניתוח RCA מעמיק עבור הסוכן החכם (AIAgent)
- */
-export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappened: string | WhatHappenedStructured, gaps: string[] }) => {
+// Analyze root causes with deeper reasoning using Pro model
+// Added missing export required by AIAgent.tsx
+export const analyzeRootCause = async (data: { 
+  whatHappened: string | WhatHappenedStructured, 
+  whatWasPlanned: string, 
+  gaps: string[] 
+}) => {
   try {
-    const ai = getAiInstance();
+    if (!process.env.API_KEY) throw new Error("MISSING_API_KEY");
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const actualText = formatActualData(data.whatHappened);
     
-    const prompt = `בצע ניתוח שורש (Root Cause Analysis) מעמיק לאירוע הבא.
-      חשוב מאוד: כל הניתוח וההמלצות חייבים להיות בעברית בלבד!
-      
-      מה תוכנן: ${data.whatWasPlanned}
-      מה קרה בפועל: ${actualText}
-      פערים שזוהו: ${data.gaps.join(", ")}
-      החזר JSON הכולל rootCauses (מערך), analysis (טקסט), ו-recommendations (מערך), הכל בעברית.`;
+    const prompt = `בצע ניתוח מעמיק של גורמי שורש (Root Cause Analysis) עבור התחקיר הבא:
+    תכנון: ${data.whatWasPlanned}
+    ביצוע: ${actualText}
+    פערים שזוהו: ${data.gaps.join(", ")}
+    
+    עליך להחזיר JSON עם המבנה הבא:
+    - rootCauses: מערך של מחרוזות (גורמי שורש)
+    - analysis: מחרוזת טקסט חופשי המנתחת את הסיבות וההקשרים
+    - recommendations: מערך של המלצות אופרטיביות
+    
+    חובה להשיב בעברית בלבד!`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -150,37 +125,30 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
       },
     });
 
-    // Access text property directly
-    return response.text ? JSON.parse(response.text) : { rootCauses: [], analysis: '', recommendations: [] };
+    return response.text ? JSON.parse(response.text) : null;
   } catch (error: any) {
-    console.error("Analyze Root Cause Error:", error);
-    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
-      throw new Error("MISSING_API_KEY");
-    }
-    return { rootCauses: [], analysis: 'שגיאה בניתוח הנתונים.', recommendations: [] };
+    if (error.message === "MISSING_API_KEY") throw error;
+    return null;
   }
 };
 
-/**
- * צ'אט אינטראקטיבי עם הסוכן
- */
-export const chatWithAgent = async (history: {role: string, content: string}[], message: string) => {
+// Chat with the agent about the debrief
+// Added missing export required by AIAgent.tsx
+export const chatWithAgent = async (history: Message[], message: string) => {
   try {
-    const ai = getAiInstance();
+    if (!process.env.API_KEY) throw new Error("MISSING_API_KEY");
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
-        systemInstruction: 'אתה עוזר מומחה לתחקירים מבצעיים (AAR). ענה תמיד בעברית בלבד. עזור למשתמש להבין את הפערים ולשפר ביצועים.',
+        systemInstruction: 'אתה מומחה לניתוח תחקירים והפקת לקחים. עזור למשתמש להבין טוב יותר את האירוע שלו ולמצוא פתרונות. ענה בעברית.',
       },
     });
+    
     const response = await chat.sendMessage({ message });
-    // Access text property directly
     return response.text;
   } catch (error: any) {
-    console.error("Chat Error:", error);
-    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
-      return "נראה שחסר מפתח API. נא לחץ על 'התחברות' בתפריט או וודא שביצעת Deploy ב-Netlify.";
-    }
-    return "חלה שגיאה בתקשורת.";
+    if (error.message === "MISSING_API_KEY") throw error;
+    return "מצטער, חלה שגיאה בתקשורת עם הסוכן.";
   }
 };
