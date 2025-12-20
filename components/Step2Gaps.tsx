@@ -27,11 +27,12 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
       if (suggestedGaps) {
         setGaps(suggestedGaps);
       } else {
-        setError("לא התקבלה תשובה מהשרת. וודא שמשתנה הסביבה API_KEY מוגדר ב-Netlify ושהמפתח תקין.");
+        // שגיאה שקטה יותר שמאפשרת המשכיות
+        setError("לא הצלחנו לקבל ניתוח אוטומטי כרגע.");
       }
     } catch (e: any) {
       console.error(e);
-      setError(e.message || "חלה שגיאה לא צפויה בניתוח. בדוק את ה-Console בדפדפן.");
+      setError("חלה שגיאה בתקשורת עם ה-AI.");
     } finally {
       setLoading(false);
     }
@@ -43,7 +44,11 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
     setGaps(newGaps);
   };
 
-  const addGap = () => setGaps([...gaps, '']);
+  const addGap = () => {
+    setGaps([...gaps, '']);
+    setError(null); // נקה שגיאה אם המשתמש התחיל להזין ידנית
+  };
+  
   const removeGap = (i: number) => setGaps(gaps.filter((_, idx) => idx !== i));
 
   const handleProceed = () => {
@@ -60,20 +65,20 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
             onClick={handleAnalyze} 
             className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full active:scale-95 transition-transform"
           >
-            נתח שוב 🤖
+            נסה ניתוח AI שוב 🤖
           </button>
         )}
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-red-800 text-xs font-bold flex flex-col gap-2 animate-in fade-in">
-          <p>⚠️ {error}</p>
-          <p className="opacity-70">ניתן להזין פערים ידנית ולהמשיך בתחקיר.</p>
+        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl text-amber-900 text-xs font-bold flex flex-col gap-2 animate-in fade-in">
+          <p>💡 {error}</p>
+          <p className="opacity-70">אל דאגה, ניתן להזין פערים ידנית ולהמשיך כרגיל.</p>
           <button 
-            onClick={() => { setError(null); if (gaps.length === 0) addGap(); }}
-            className="bg-white border border-red-200 py-2 px-4 rounded-xl self-end text-red-600 shadow-sm font-bold active:scale-95 transition-transform"
+            onClick={addGap}
+            className="bg-white border border-amber-200 py-2 px-4 rounded-xl self-end text-amber-700 shadow-sm font-bold active:scale-95 transition-transform"
           >
-            הזן פערים ידנית
+            הזן פערים בעצמי
           </button>
         </div>
       )}
@@ -89,16 +94,10 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
               <p className="text-sm font-black text-slate-700">ה-AI מנתח נתונים...</p>
               <p className="text-[10px] text-slate-400 mt-1 italic">מזהה פערים בין תכנון לביצוע</p>
             </div>
-            <button 
-              onClick={() => { setLoading(false); if(gaps.length === 0) addGap(); }}
-              className="mt-4 text-[10px] font-bold text-slate-400 underline"
-            >
-              בטל והזן ידנית
-            </button>
           </div>
         ) : (
           <>
-            {gaps.length === 0 && !loading && !error && (
+            {gaps.length === 0 && !error && (
               <div className="py-10 text-center space-y-4">
                 <p className="text-slate-400 text-sm font-medium">מוכן להזנת פערים.</p>
                 <button onClick={addGap} className="bg-slate-900 text-white px-6 py-2 rounded-xl text-xs font-bold shadow-lg">הוסף פער ראשון +</button>

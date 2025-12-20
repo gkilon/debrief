@@ -1,17 +1,27 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
+
+/**
+ * פונקציה פנימית לקבלת המפתח בצורה בטוחה
+ */
+const getApiKey = () => {
+  try {
+    return process.env.API_KEY;
+  } catch (e) {
+    return undefined;
+  }
+};
 
 /**
  * שלב 1: זיהוי פערים על בסיס תכנון מול ביצוע
  */
 export const identifyGaps = async (planned: string, actual: string) => {
-  try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      console.error("CRITICAL: API_KEY is undefined in the execution context.");
-      return null;
-    }
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.error("API_KEY is not defined in process.env");
+    return null;
+  }
 
+  try {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `אתה מומחה לתחקירים מבצעיים. זהה 3 פערים עיקריים בין התכנון לביצוע הבאים.
     תכנון: ${planned}
@@ -20,9 +30,9 @@ export const identifyGaps = async (planned: string, actual: string) => {
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
-        thinkingConfig: { thinkingBudget: 0 },
+        thinkingConfig: { thinkingBudget: 0 }, // מהירות מקסימלית למשימה פשוטה
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -37,14 +47,9 @@ export const identifyGaps = async (planned: string, actual: string) => {
       },
     });
 
-    if (!response.text) {
-      console.warn("Empty response from AI");
-      return null;
-    }
-
-    return JSON.parse(response.text).gaps;
-  } catch (error: any) {
-    console.error("Identify Gaps Detailed Error:", error);
+    return response.text ? JSON.parse(response.text).gaps : null;
+  } catch (error) {
+    console.error("Identify Gaps Error:", error);
     return null;
   }
 };
@@ -53,16 +58,16 @@ export const identifyGaps = async (planned: string, actual: string) => {
  * שלב 2: ניתוח גורמי שורש ומסקנות בסיסיות לטופס
  */
 export const analyzeConclusions = async (gaps: string[]) => {
-  try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return { rootCauses: [], conclusions: [] };
+  const apiKey = getApiKey();
+  if (!apiKey) return { rootCauses: [], conclusions: [] };
 
+  try {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `נתח את הפערים הבאים ומצא גורמי שורש ומסקנות לשיפור: ${gaps.join(", ")}. החזר JSON עם מערכי rootCauses ו-conclusions.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
         thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
@@ -88,10 +93,10 @@ export const analyzeConclusions = async (gaps: string[]) => {
  * ניתוח RCA מעמיק עבור הסוכן החכם (AIAgent)
  */
 export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappened: string, gaps: string[] }) => {
-  try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return { rootCauses: [], analysis: 'חסר מפתח API.', recommendations: [] };
+  const apiKey = getApiKey();
+  if (!apiKey) return { rootCauses: [], analysis: 'חסר מפתח API.', recommendations: [] };
 
+  try {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `בצע ניתוח שורש (Root Cause Analysis) מעמיק לאירוע הבא:
       מה תוכנן: ${data.whatWasPlanned}
@@ -100,9 +105,10 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
       החזר JSON הכולל rootCauses (מערך), analysis (טקסט), ו-recommendations (מערך).`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: prompt,
+      model: "gemini-3-pro-preview", // שימוש במודל Pro למשימה מורכבת של RCA
+      contents: [{ parts: [{ text: prompt }] }],
       config: {
+        // מודל Pro מקבל תקציב חשיבה גבוה יותר כברירת מחדל לניתוח מעמיק
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -127,10 +133,10 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
  * צ'אט אינטראקטיבי עם הסוכן
  */
 export const chatWithAgent = async (history: {role: string, content: string}[], message: string) => {
-  try {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return "שגיאה: חסר מפתח API.";
+  const apiKey = getApiKey();
+  if (!apiKey) return "שגיאה: חסר מפתח API.";
 
+  try {
     const ai = new GoogleGenAI({ apiKey });
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
