@@ -11,6 +11,7 @@ interface Props {
 
 const Step3Conclusions: React.FC<Props> = ({ data, updateData, onFinish }) => {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [rootCauses, setRootCauses] = useState<string[]>(data.rootCauses || []);
   const [conclusions, setConclusions] = useState<string[]>(data.conclusions || []);
 
@@ -22,10 +23,26 @@ const Step3Conclusions: React.FC<Props> = ({ data, updateData, onFinish }) => {
 
   const handleAnalyze = async () => {
     setLoading(true);
-    const result = await analyzeConclusions(data.gaps || []);
-    setRootCauses(result.rootCauses);
-    setConclusions(result.conclusions);
-    setLoading(false);
+    setError(null);
+    try {
+      const result = await analyzeConclusions(data.gaps || []);
+      setRootCauses(result.rootCauses);
+      setConclusions(result.conclusions);
+    } catch (e: any) {
+      console.error("Step3Conclusions Analyze error:", e);
+      if (e.message === "MISSING_API_KEY" || e.message?.includes("API Key")) {
+        setError("חסר מפתח API להשלמת הניתוח.");
+        // @ts-ignore
+        if (window.aistudio) {
+          // @ts-ignore
+          window.aistudio.openSelectKey().then(handleAnalyze);
+        }
+      } else {
+        setError("חלה שגיאה בייצור המסקנות.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleListChange = (i: number, val: string, list: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) => {
@@ -46,8 +63,25 @@ const Step3Conclusions: React.FC<Props> = ({ data, updateData, onFinish }) => {
     <div className="space-y-8 animate-in slide-in-from-left duration-300">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-black text-slate-900">גורמי שורש ומסקנות</h2>
-        <button onClick={handleAnalyze} disabled={loading} className="text-xs font-bold text-blue-600">נתח שוב</button>
+        {!loading && (
+          <button onClick={handleAnalyze} className="text-xs font-bold text-blue-600">נתח שוב 🤖</button>
+        )}
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-red-900 text-xs font-bold flex flex-col gap-3">
+          <p>⚠️ {error}</p>
+          <button 
+            onClick={() => {
+              // @ts-ignore
+              if (window.aistudio) window.aistudio.openSelectKey().then(handleAnalyze);
+            }}
+            className="bg-white py-2 px-4 rounded-xl self-end text-red-700 shadow-sm"
+          >
+            בחר מפתח API
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-20 flex flex-col items-center gap-4">
@@ -61,8 +95,9 @@ const Step3Conclusions: React.FC<Props> = ({ data, updateData, onFinish }) => {
               <label className="text-xs font-black uppercase text-indigo-500 tracking-wider">🔎 גורמי שורש</label>
               <button onClick={() => addItem(setRootCauses)} className="text-[10px] font-bold text-slate-400">+ הוסף</button>
             </div>
+            {rootCauses.length === 0 && !error && <p className="text-center text-slate-400 text-xs py-4">לא זוהו גורמי שורש אוטומטית</p>}
             {rootCauses.map((rc, i) => (
-              <div key={i} className="relative">
+              <div key={i} className="relative animate-in slide-in-from-bottom-2">
                 <textarea
                   value={rc}
                   onChange={(e) => handleListChange(i, e.target.value, rootCauses, setRootCauses)}
@@ -79,8 +114,9 @@ const Step3Conclusions: React.FC<Props> = ({ data, updateData, onFinish }) => {
               <label className="text-xs font-black uppercase text-emerald-500 tracking-wider">✅ מסקנות אופרטיביות</label>
               <button onClick={() => addItem(setConclusions)} className="text-[10px] font-bold text-slate-400">+ הוסף</button>
             </div>
+            {conclusions.length === 0 && !error && <p className="text-center text-slate-400 text-xs py-4">לא נוצרו מסקנות אוטומטית</p>}
             {conclusions.map((conc, i) => (
-              <div key={i} className="relative">
+              <div key={i} className="relative animate-in slide-in-from-bottom-2">
                 <textarea
                   value={conc}
                   onChange={(e) => handleListChange(i, e.target.value, conclusions, setConclusions)}

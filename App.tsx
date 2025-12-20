@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Step1Input from './components/Step1Input';
@@ -19,7 +18,13 @@ const App: React.FC = () => {
   // בדיקת קיום מפתח API בהפעלה
   useEffect(() => {
     const checkApiKey = async () => {
-      const exists = !!process.env.API_KEY;
+      const apiKey = 
+        process.env.API_KEY || 
+        (import.meta as any).env?.VITE_API_KEY || 
+        (import.meta as any).env?.VITE_GOOGLE_API_KEY;
+      
+      const exists = !!apiKey;
+      
       // @ts-ignore - aistudio is provided by the environment
       if (!exists && window.aistudio) {
         // @ts-ignore
@@ -164,6 +169,9 @@ const App: React.FC = () => {
           >
             התחברות עם Google Gemini
           </button>
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 max-w-xs text-[11px] text-blue-800 leading-relaxed">
+            <strong>טיפ:</strong> אם כבר הגדרת מפתח ב-Netlify וזה עדיין מופיע, וודא שביצעת <strong>Trigger Deploy</strong> מחדש כדי שהשינויים ייכנסו לתוקף.
+          </div>
           <p className="text-[10px] text-slate-400">
             השימוש מחייב מפתח API מפרויקט עם חיוב מופעל. <br/>
             <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline font-bold">למידע נוסף על חיוב</a>

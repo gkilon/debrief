@@ -1,13 +1,30 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
+
+/**
+ * פונקציה פנימית ליצירת המופע של ה-AI.
+ * בודקת את כל הווריאציות שהמשתמש הגדיר ב-Netlify כדי להבטיח זיהוי.
+ */
+const getAiInstance = () => {
+  // בדיקה של כל האפשרויות שהוגדרו ב-Netlify
+  const apiKey = 
+    process.env.API_KEY || 
+    (import.meta as any).env?.VITE_API_KEY || 
+    (import.meta as any).env?.VITE_GOOGLE_API_KEY ||
+    (process.env as any).VITE_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("MISSING_API_KEY");
+  }
+  
+  return new GoogleGenAI({ apiKey });
+};
 
 /**
  * שלב 1: זיהוי פערים על בסיס תכנון מול ביצוע
  */
 export const identifyGaps = async (planned: string, actual: string) => {
   try {
-    // אתחול המופע ממש לפני השימוש כדי להבטיח קבלת המפתח המעודכן ביותר
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAiInstance();
     
     const prompt = `אתה מומחה לתחקירים מבצעיים (AAR). זהה 3 פערים עיקריים בין התכנון לביצוע הבאים:
     תכנון: ${planned}
@@ -36,8 +53,7 @@ export const identifyGaps = async (planned: string, actual: string) => {
     return response.text ? JSON.parse(response.text).gaps : null;
   } catch (error: any) {
     console.error("Identify Gaps Error:", error);
-    // אם השגיאה נובעת מחוסר מפתח, נזרוק אותה כדי שה-UI ידע להציג בחירת מפתח
-    if (error.message?.includes("API Key")) {
+    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
       throw new Error("MISSING_API_KEY");
     }
     return null;
@@ -49,7 +65,7 @@ export const identifyGaps = async (planned: string, actual: string) => {
  */
 export const analyzeConclusions = async (gaps: string[]) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAiInstance();
     const prompt = `נתח את הפערים הבאים ומצא גורמי שורש ומסקנות לשיפור: ${gaps.join(", ")}. החזר JSON עם מערכי rootCauses ו-conclusions.`;
 
     const response = await ai.models.generateContent({
@@ -72,7 +88,9 @@ export const analyzeConclusions = async (gaps: string[]) => {
     return response.text ? JSON.parse(response.text) : { rootCauses: [], conclusions: [] };
   } catch (error: any) {
     console.error("Analyze Conclusions Error:", error);
-    if (error.message?.includes("API Key")) throw new Error("MISSING_API_KEY");
+    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
+      throw new Error("MISSING_API_KEY");
+    }
     return { rootCauses: [], conclusions: [] };
   }
 };
@@ -82,7 +100,7 @@ export const analyzeConclusions = async (gaps: string[]) => {
  */
 export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappened: string, gaps: string[] }) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAiInstance();
     const prompt = `בצע ניתוח שורש (Root Cause Analysis) מעמיק לאירוע הבא:
       מה תוכנן: ${data.whatWasPlanned}
       מה קרה בפועל: ${data.whatHappened}
@@ -109,7 +127,9 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
     return response.text ? JSON.parse(response.text) : { rootCauses: [], analysis: '', recommendations: [] };
   } catch (error: any) {
     console.error("Analyze Root Cause Error:", error);
-    if (error.message?.includes("API Key")) throw new Error("MISSING_API_KEY");
+    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
+      throw new Error("MISSING_API_KEY");
+    }
     return { rootCauses: [], analysis: 'שגיאה בניתוח הנתונים.', recommendations: [] };
   }
 };
@@ -119,7 +139,7 @@ export const analyzeRootCause = async (data: { whatWasPlanned: string, whatHappe
  */
 export const chatWithAgent = async (history: {role: string, content: string}[], message: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAiInstance();
     const chat = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
@@ -130,7 +150,9 @@ export const chatWithAgent = async (history: {role: string, content: string}[], 
     return response.text;
   } catch (error: any) {
     console.error("Chat Error:", error);
-    if (error.message?.includes("API Key")) return "נראה שחסר מפתח API. נא לחץ על 'התחברות' בתפריט.";
+    if (error.message === "MISSING_API_KEY" || error.message?.includes("API Key")) {
+      return "נראה שחסר מפתח API. נא לחץ על 'התחברות' בתפריט או וודא שביצעת Deploy ב-Netlify.";
+    }
     return "חלה שגיאה בתקשורת.";
   }
 };

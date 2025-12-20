@@ -31,14 +31,15 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
         setError("לא נמצאו פערים משמעותיים או שחלה שגיאה פנימית.");
       }
     } catch (e: any) {
-      console.error(e);
-      if (e.message === "MISSING_API_KEY") {
-        setError("נראה שחסר מפתח API. נא להגדיר מפתח בהגדרות המערכת.");
+      console.error("Step2Gaps Analyze error:", e);
+      if (e.message === "MISSING_API_KEY" || e.message?.includes("API Key")) {
+        setError("חסר מפתח API לביצוע הניתוח.");
         // @ts-ignore
         if (window.aistudio) {
           // @ts-ignore
           window.aistudio.openSelectKey().then(() => {
-            handleAnalyze(); // ניסיון חוזר לאחר פתיחת הדיאלוג
+            // לאחר פתיחת הדיאלוג, ננסה שוב כפי שההנחיות דורשות
+            handleAnalyze();
           });
         }
       } else {
@@ -90,12 +91,23 @@ const Step2Gaps: React.FC<Props> = ({ data, updateData, onNext }) => {
               <p className="font-normal opacity-80">וודא שמשתנה הסביבה API_KEY מוגדר או בחר מפתח מהתפריט.</p>
             </div>
           </div>
-          <button 
-            onClick={addGap}
-            className="bg-white border border-red-200 py-2 px-4 rounded-xl self-end text-red-700 shadow-sm font-bold active:scale-95 transition-transform"
-          >
-            המשך והזן פערים ידנית
-          </button>
+          <div className="flex gap-2 self-end">
+             <button 
+                onClick={() => {
+                   // @ts-ignore
+                   if (window.aistudio) window.aistudio.openSelectKey().then(handleAnalyze);
+                }}
+                className="bg-red-100 py-2 px-4 rounded-xl text-red-700 shadow-sm font-bold active:scale-95 transition-transform"
+              >
+                בחר מפתח API
+              </button>
+              <button 
+                onClick={addGap}
+                className="bg-white border border-red-200 py-2 px-4 rounded-xl text-red-700 shadow-sm font-bold active:scale-95 transition-transform"
+              >
+                המשך ידנית
+              </button>
+          </div>
         </div>
       )}
 
